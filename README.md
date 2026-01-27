@@ -1,1 +1,2 @@
-# AI Schedule Planning
+# My Fullstack Project
+# AI-schedule-planning
