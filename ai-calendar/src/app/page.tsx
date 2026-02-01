@@ -1,45 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CalendarView } from "@/components/Calendar";
 import { EventInput } from "@/components/EventInput";
+import { EventPreview } from "@/components/EventPreview";
+import { EventModal } from "@/components/EventModal";
 import { CalendarEvent, ParsedEventData } from "@/types/calendar";
+import { saveEvents, loadEvents } from "@/lib/storage";
+import { checkConflict } from "@/lib/conflict";
 
 export default function Home() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [previewData, setPreviewData] = useState<ParsedEventData | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // 处理解析后的事件
+  // 页面加载时从 localStorage 读取事件
+  useEffect(() => {
+    const storedEvents = loadEvents();
+    setEvents(storedEvents);
+    setIsLoaded(true);
+  }, []);
+
+  // events 变化时保存到 localStorage（跳过初始加载）
+  useEffect(() => {
+    if (isLoaded) {
+      saveEvents(events);
+    }
+  }, [events, isLoaded]);
+
+  // 计算冲突事件
+  const conflicts = useMemo(() => {
+    if (!previewData) return [];
+
+    const result = checkConflict(
+      {
+        start: new Date(previewData.start),
+        end: new Date(previewData.end),
+        isAllDay: previewData.isAllDay,
+      },
+      events
+    );
+
+    return result.conflicts;
+  }, [previewData, events]);
+
+  // API 返回后显示预览弹窗
   const handleEventParsed = (parsedData: ParsedEventData) => {
-    // 将 ParsedEventData 转换为 CalendarEvent
+    setPreviewData(parsedData);
+  };
+
+  // 确认添加事件
+  const handleConfirmAdd = () => {
+    if (!previewData) return;
+
     const newEvent: CalendarEvent = {
-      id: parsedData.id,
-      title: parsedData.title,
-      start: new Date(parsedData.start),
-      end: new Date(parsedData.end),
-      isAllDay: parsedData.isAllDay,
-      location: parsedData.location,
-      description: parsedData.description,
-      attendees: parsedData.attendees,
-      type: parsedData.type,
+      id: previewData.id,
+      title: previewData.title,
+      start: new Date(previewData.start),
+      end: new Date(previewData.end),
+      isAllDay: previewData.isAllDay,
+      location: previewData.location,
+      description: previewData.description,
+      attendees: previewData.attendees,
+      type: previewData.type,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     setEvents((prev) => [...prev, newEvent]);
+    setPreviewData(null);
   };
 
-  // 处理点击事件
-  const handleSelectEvent = (event: CalendarEvent) => {
-    const details = [
-      `标题: ${event.title}`,
-      event.location ? `地点: ${event.location}` : null,
-      event.attendees?.length ? `参与者: ${event.attendees.join("、")}` : null,
-      `时间: ${event.start.toLocaleString("zh-CN")} - ${event.end.toLocaleTimeString("zh-CN")}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
+  // 取消预览
+  const handleCancelPreview = () => {
+    setPreviewData(null);
+  };
 
-    alert(details);
+  // 点击日历事件 - 显示详情弹窗
+  const handleSelectEvent = (event: CalendarEvent) => {
+    setSelectedEvent(event);
+  };
+
+  // 关闭详情弹窗
+  const handleCloseModal = () => {
+    setSelectedEvent(null);
+  };
+
+  // 删除事件
+  const handleDeleteEvent = (id: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    setSelectedEvent(null);
   };
 
   return (
@@ -61,6 +112,25 @@ export default function Home() {
       <main className="flex-1 p-4 overflow-hidden">
         <CalendarView events={events} onSelectEvent={handleSelectEvent} />
       </main>
+
+      {/* 预览弹窗 */}
+      {previewData && (
+        <EventPreview
+          data={previewData}
+          conflicts={conflicts}
+          onConfirm={handleConfirmAdd}
+          onCancel={handleCancelPreview}
+        />
+      )}
+
+      {/* 事件详情弹窗 */}
+      {selectedEvent && (
+        <EventModal
+          event={selectedEvent}
+          onClose={handleCloseModal}
+          onDelete={handleDeleteEvent}
+        />
+      )}
     </div>
   );
 }

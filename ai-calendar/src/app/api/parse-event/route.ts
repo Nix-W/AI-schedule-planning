@@ -90,23 +90,39 @@ function mockParseEvent(
 
   // ========== 解析时间 ==========
 
+  // 判断时间段上下文
+  const isMorning = /早上|上午|凌晨/.test(text);
+  const isAfternoon = /下午/.test(text);
+  const isEvening = /晚上/.test(text);
+
+  // 调整小时数的辅助函数
+  const adjustHour = (h: number): number => {
+    // 如果明确指定了上午/早上/凌晨，保持原样
+    if (isMorning) return h;
+    // 如果明确指定了下午或晚上，且小时数 <= 12，则 +12
+    if ((isAfternoon || isEvening) && h >= 1 && h <= 12) {
+      return h + 12;
+    }
+    // 没有明确指定时，1-6 点默认下午
+    if (!isMorning && !isAfternoon && !isEvening && h >= 1 && h <= 6) {
+      return h + 12;
+    }
+    return h;
+  };
+
   // 先检查具体时间点
   const timeMatch = text.match(/(\d{1,2})点(半)?/);
   if (timeMatch) {
     hour = parseInt(timeMatch[1]);
     minute = timeMatch[2] ? 30 : 0;
-
-    // 1-6 点默认下午，除非明确指定上午/早上
-    if (hour >= 1 && hour <= 6 && !/早上|上午|凌晨/.test(text)) {
-      hour += 12;
-    }
-  } else if (/早上|上午/.test(text)) {
+    hour = adjustHour(hour);
+  } else if (isMorning) {
     hour = 9;
   } else if (/中午/.test(text)) {
     hour = 12;
-  } else if (/下午/.test(text)) {
+  } else if (isAfternoon) {
     hour = 14;
-  } else if (/晚上/.test(text)) {
+  } else if (isEvening) {
     hour = 19;
   } else {
     warnings.push("未识别到具体时间，默认为下午2点");
@@ -115,11 +131,10 @@ function mockParseEvent(
   // 解析时间范围，如 "8点到10点"
   const rangeMatch = text.match(/(\d{1,2})点.*?到(\d{1,2})点/);
   if (rangeMatch) {
-    const startHour = parseInt(rangeMatch[1]);
-    const endHour = parseInt(rangeMatch[2]);
-    hour = startHour >= 1 && startHour <= 6 && !/早上|上午/.test(text) ? startHour + 12 : startHour;
-    const adjustedEndHour = endHour >= 1 && endHour <= 6 && !/早上|上午/.test(text) ? endHour + 12 : endHour;
-    duration = (adjustedEndHour - hour) * 60;
+    const startHour = adjustHour(parseInt(rangeMatch[1]));
+    const endHour = adjustHour(parseInt(rangeMatch[2]));
+    hour = startHour;
+    duration = (endHour - startHour) * 60;
   }
 
   // 解析持续时间
@@ -168,17 +183,31 @@ function mockParseEvent(
 
   // ========== 生成标题 ==========
 
-  // 移除时间相关词汇，简化标题
+  // 移除时间、日期、地点、参与者相关词汇，只保留核心事项
   title = text
+    // 移除日期
     .replace(/今天|明天|后天|大后天/g, "")
     .replace(/下周[一二三四五六日天]/g, "")
     .replace(/\d{1,2}月\d{1,2}[号日]/g, "")
+    // 移除时间段
     .replace(/早上|上午|中午|下午|晚上/g, "")
+    // 移除阿拉伯数字时间（包括"到X点"）
     .replace(/\d{1,2}点(半)?/g, "")
     .replace(/到\d{1,2}点/g, "")
+    // 移除中文数字时间（如"三点"）
+    .replace(/[一二三四五六七八九十]+点(半)?/g, "")
+    // 移除持续时间
     .replace(/\d+\s*(分钟|小时)/g, "")
     .replace(/半小时|半个小时/g, "")
     .replace(/全天/g, "")
+    // 移除地点相关（保留核心动作）
+    .replace(/在[^\s,，、]+?(?=讨论|开会|见面|聊|吃|看|$)/g, "")
+    // 移除参与者相关（保留核心动作）
+    .replace(/和[^\s,，、在]+?(?=在|讨论|开会|见面|聊|吃|看|$)/g, "")
+    // 清理残留的"到"字
+    .replace(/^到/g, "")
+    // 清理多余空格
+    .replace(/\s+/g, "")
     .trim();
 
   if (!title) {
