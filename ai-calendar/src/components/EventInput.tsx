@@ -1,17 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ParsedEventData, ParseEventResult } from "@/types/calendar";
 
 interface EventInputProps {
   onEventParsed: (event: ParsedEventData) => void;
   disabled?: boolean;
+  value?: string;
+  onValueChange?: (value: string) => void;
 }
 
-export function EventInput({ onEventParsed, disabled }: EventInputProps) {
+export function EventInput({
+  onEventParsed,
+  disabled,
+  value: externalValue,
+  onValueChange,
+}: EventInputProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // 同步外部值到内部状态
+  useEffect(() => {
+    if (externalValue !== undefined) {
+      setInput(externalValue);
+    }
+  }, [externalValue]);
+
+  const handleInputChange = (newValue: string) => {
+    setInput(newValue);
+    onValueChange?.(newValue);
+  };
 
   const handleSubmit = async () => {
     const trimmed = input.trim();
@@ -32,6 +51,7 @@ export function EventInput({ onEventParsed, disabled }: EventInputProps) {
       if (data.success) {
         onEventParsed(data.data);
         setInput("");
+        onValueChange?.("");
       } else {
         setError(data.error.message);
       }
@@ -55,7 +75,7 @@ export function EventInput({ onEventParsed, disabled }: EventInputProps) {
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="输入日程，如：明天下午3点和老王开会"
           disabled={loading || disabled}

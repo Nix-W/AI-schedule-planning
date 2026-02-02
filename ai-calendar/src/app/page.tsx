@@ -5,15 +5,40 @@ import { CalendarView } from "@/components/Calendar";
 import { EventInput } from "@/components/EventInput";
 import { EventPreview } from "@/components/EventPreview";
 import { EventModal } from "@/components/EventModal";
+import { QuickTemplates } from "@/components/QuickTemplates";
 import { CalendarEvent, ParsedEventData } from "@/types/calendar";
 import { saveEvents, loadEvents } from "@/lib/storage";
 import { checkConflict } from "@/lib/conflict";
+
+// 空状态组件
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-gray-400">
+      <svg
+        className="w-16 h-16 mb-4 opacity-50"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+        />
+      </svg>
+      <p className="text-lg font-medium mb-1">暂无日程</p>
+      <p className="text-sm">试试在上方输入框添加一个日程吧</p>
+    </div>
+  );
+}
 
 export default function Home() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [previewData, setPreviewData] = useState<ParsedEventData | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [inputValue, setInputValue] = useState("");
 
   // 页面加载时从 localStorage 读取事件
   useEffect(() => {
@@ -93,24 +118,43 @@ export default function Home() {
     setSelectedEvent(null);
   };
 
+  // 快捷模板选择
+  const handleTemplateSelect = (text: string) => {
+    setInputValue(text);
+  };
+
   return (
-    <div className="h-screen flex flex-col bg-white">
-      {/* 头部 */}
-      <header className="flex-shrink-0 border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-800">AI 日程规划</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          用自然语言描述，智能创建日程
-        </p>
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* 头部区域 */}
+      <header className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
+        {/* 标题 */}
+        <div className="px-4 sm:px-6 py-3 sm:py-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+            AI 日程规划
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+            用自然语言描述，智能创建日程
+          </p>
+        </div>
+
+        {/* 输入区域 */}
+        <div className="px-4 sm:px-6 pb-3 sm:pb-4 space-y-2 sm:space-y-3">
+          <EventInput
+            onEventParsed={handleEventParsed}
+            value={inputValue}
+            onValueChange={setInputValue}
+          />
+          <QuickTemplates onSelect={handleTemplateSelect} />
+        </div>
       </header>
 
-      {/* 输入区域 */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 bg-gray-50">
-        <EventInput onEventParsed={handleEventParsed} />
-      </div>
-
       {/* 日历区域 */}
-      <main className="flex-1 p-4 overflow-hidden">
-        <CalendarView events={events} onSelectEvent={handleSelectEvent} />
+      <main className="flex-1 p-2 sm:p-4 overflow-hidden bg-white m-2 sm:m-4 rounded-lg shadow-sm border border-gray-200">
+        {events.length === 0 && isLoaded ? (
+          <EmptyState />
+        ) : (
+          <CalendarView events={events} onSelectEvent={handleSelectEvent} />
+        )}
       </main>
 
       {/* 预览弹窗 */}
