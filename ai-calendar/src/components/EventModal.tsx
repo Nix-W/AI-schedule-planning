@@ -1,14 +1,42 @@
 "use client";
 
-import { CalendarEvent, EVENT_COLORS } from "@/types/calendar";
+import { useState } from "react";
+import { CalendarEvent, EVENT_COLORS, EventType } from "@/types/calendar";
 
 interface EventModalProps {
   event: CalendarEvent;
   onClose: () => void;
   onDelete: (id: string) => void;
+  onEdit?: (updatedEvent: CalendarEvent) => void;
 }
 
-export function EventModal({ event, onClose, onDelete }: EventModalProps) {
+// 格式化日期为 input[type=date] 格式
+function formatDateForInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// 格式化时间为 input[type=time] 格式
+function formatTimeForInput(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps) {
+  const [isEditing, setIsEditing] = useState(false);
+
+  // 编辑表单状态
+  const [editTitle, setEditTitle] = useState(event.title);
+  const [editDate, setEditDate] = useState(formatDateForInput(event.start));
+  const [editStartTime, setEditStartTime] = useState(formatTimeForInput(event.start));
+  const [editEndTime, setEditEndTime] = useState(formatTimeForInput(event.end));
+  const [editLocation, setEditLocation] = useState(event.location || "");
+  const [editAttendees, setEditAttendees] = useState(event.attendees?.join("、") || "");
+  const [editIsAllDay, setEditIsAllDay] = useState(event.isAllDay);
+
   const color = event.color || EVENT_COLORS[event.type || "other"];
 
   // 格式化时间显示
@@ -47,7 +75,11 @@ export function EventModal({ event, onClose, onDelete }: EventModalProps) {
   // 点击遮罩层关闭
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      if (isEditing) {
+        handleCancelEdit();
+      } else {
+        onClose();
+      }
     }
   };
 
@@ -58,6 +90,223 @@ export function EventModal({ event, onClose, onDelete }: EventModalProps) {
     }
   };
 
+  // 进入编辑模式
+  const handleStartEdit = () => {
+    setEditTitle(event.title);
+    setEditDate(formatDateForInput(event.start));
+    setEditStartTime(formatTimeForInput(event.start));
+    setEditEndTime(formatTimeForInput(event.end));
+    setEditLocation(event.location || "");
+    setEditAttendees(event.attendees?.join("、") || "");
+    setEditIsAllDay(event.isAllDay);
+    setIsEditing(true);
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
+
+  // 保存编辑
+  const handleSaveEdit = () => {
+    if (!editTitle.trim()) {
+      alert("标题不能为空");
+      return;
+    }
+
+    // 解析日期和时间
+    const [year, month, day] = editDate.split("-").map(Number);
+    const [startHour, startMinute] = editStartTime.split(":").map(Number);
+    const [endHour, endMinute] = editEndTime.split(":").map(Number);
+
+    const newStart = new Date(year, month - 1, day, startHour, startMinute);
+    const newEnd = new Date(year, month - 1, day, endHour, endMinute);
+
+    // 如果是全天事件，设置为当天的开始和结束
+    if (editIsAllDay) {
+      newStart.setHours(0, 0, 0, 0);
+      newEnd.setHours(23, 59, 59, 999);
+    }
+
+    // 验证结束时间大于开始时间
+    if (!editIsAllDay && newEnd <= newStart) {
+      alert("结束时间必须晚于开始时间");
+      return;
+    }
+
+    // 解析参与者
+    const attendees = editAttendees
+      .split(/[,，、]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const updatedEvent: CalendarEvent = {
+      ...event,
+      title: editTitle.trim(),
+      start: newStart,
+      end: newEnd,
+      isAllDay: editIsAllDay,
+      location: editLocation.trim() || undefined,
+      attendees: attendees.length > 0 ? attendees : undefined,
+      updatedAt: new Date(),
+    };
+
+    onEdit?.(updatedEvent);
+    setIsEditing(false);
+  };
+
+  // 渲染编辑模式
+  if (isEditing) {
+    return (
+      <div
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        onClick={handleBackdropClick}
+      >
+        <div className="bg-white rounded-xl p-6 w-[480px] max-w-[90vw] shadow-xl">
+          {/* 头部 */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">编辑日程</h2>
+            <button
+              onClick={handleCancelEdit}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {/* 编辑表单 */}
+          <div className="space-y-4 mb-6">
+            {/* 标题 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                标题
+              </label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="输入日程标题"
+              />
+            </div>
+
+            {/* 全天事件 */}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="allDay"
+                checked={editIsAllDay}
+                onChange={(e) => setEditIsAllDay(e.target.checked)}
+                className="w-4 h-4 text-blue-500 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="allDay" className="text-sm text-gray-700">
+                全天事件
+              </label>
+            </div>
+
+            {/* 日期 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                日期
+              </label>
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* 时间（非全天事件） */}
+            {!editIsAllDay && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    开始时间
+                  </label>
+                  <input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    结束时间
+                  </label>
+                  <input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 地点 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                地点
+              </label>
+              <input
+                type="text"
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="输入地点（可选）"
+              />
+            </div>
+
+            {/* 参与者 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                参与者
+              </label>
+              <input
+                type="text"
+                value={editAttendees}
+                onChange={(e) => setEditAttendees(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="多人用顿号分隔，如：老王、小李"
+              />
+            </div>
+          </div>
+
+          {/* 操作按钮 */}
+          <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+            <button
+              onClick={handleCancelEdit}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 渲染查看模式
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -209,6 +458,27 @@ export function EventModal({ event, onClose, onDelete }: EventModalProps) {
             </svg>
             删除
           </button>
+          {onEdit && (
+            <button
+              onClick={handleStartEdit}
+              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+              编辑
+            </button>
+          )}
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
