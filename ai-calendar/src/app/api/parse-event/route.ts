@@ -5,6 +5,8 @@ import {
   ParseEventResponse,
   ParseEventError,
   EventType,
+  RecurrenceRule,
+  WeekDay,
 } from "@/types/calendar";
 
 // ============================================
@@ -19,6 +21,7 @@ interface MockParsedResult {
   location?: string;
   attendees?: string[];
   type: EventType;
+  recurrence?: RecurrenceRule;
   confidence: number;
   warnings?: string[];
 }
@@ -167,6 +170,67 @@ function mockParseEvent(
     type = "personal";
   }
 
+  // ========== 解析重复规则 ==========
+
+  let recurrence: RecurrenceRule | undefined;
+
+  // 每天
+  if (/每天|每日/.test(text)) {
+    recurrence = { freq: "daily", interval: 1 };
+  }
+  // 工作日（周一到周五）
+  else if (/工作日/.test(text)) {
+    recurrence = {
+      freq: "weekly",
+      interval: 1,
+      byDay: ["MO", "TU", "WE", "TH", "FR"],
+    };
+  }
+  // 每周X
+  else if (/每周一/.test(text)) {
+    recurrence = { freq: "weekly", interval: 1, byDay: ["MO"] };
+    // 设置到下一个周一
+    const daysUntil = ((1 - targetDate.getDay() + 7) % 7) || 7;
+    targetDate.setDate(targetDate.getDate() + daysUntil);
+  } else if (/每周二/.test(text)) {
+    recurrence = { freq: "weekly", interval: 1, byDay: ["TU"] };
+    const daysUntil = ((2 - targetDate.getDay() + 7) % 7) || 7;
+    targetDate.setDate(targetDate.getDate() + daysUntil);
+  } else if (/每周三/.test(text)) {
+    recurrence = { freq: "weekly", interval: 1, byDay: ["WE"] };
+    const daysUntil = ((3 - targetDate.getDay() + 7) % 7) || 7;
+    targetDate.setDate(targetDate.getDate() + daysUntil);
+  } else if (/每周四/.test(text)) {
+    recurrence = { freq: "weekly", interval: 1, byDay: ["TH"] };
+    const daysUntil = ((4 - targetDate.getDay() + 7) % 7) || 7;
+    targetDate.setDate(targetDate.getDate() + daysUntil);
+  } else if (/每周五/.test(text)) {
+    recurrence = { freq: "weekly", interval: 1, byDay: ["FR"] };
+    const daysUntil = ((5 - targetDate.getDay() + 7) % 7) || 7;
+    targetDate.setDate(targetDate.getDate() + daysUntil);
+  } else if (/每周六/.test(text)) {
+    recurrence = { freq: "weekly", interval: 1, byDay: ["SA"] };
+    const daysUntil = ((6 - targetDate.getDay() + 7) % 7) || 7;
+    targetDate.setDate(targetDate.getDate() + daysUntil);
+  } else if (/每周[日天]/.test(text)) {
+    recurrence = { freq: "weekly", interval: 1, byDay: ["SU"] };
+    const daysUntil = ((0 - targetDate.getDay() + 7) % 7) || 7;
+    targetDate.setDate(targetDate.getDate() + daysUntil);
+  }
+  // 每月X号
+  else {
+    const monthlyMatch = text.match(/每月(\d{1,2})[号日]/);
+    if (monthlyMatch) {
+      const dayOfMonth = parseInt(monthlyMatch[1]);
+      recurrence = { freq: "monthly", interval: 1, byMonthDay: dayOfMonth };
+      // 设置到这个月或下个月的对应日期
+      targetDate.setDate(dayOfMonth);
+      if (targetDate < now) {
+        targetDate.setMonth(targetDate.getMonth() + 1);
+      }
+    }
+  }
+
   // ========== 提取地点 ==========
 
   const locationMatch = text.match(/在([^\s,，、]+?)(?:讨论|开会|见面|聊|吃|$)/);
@@ -185,6 +249,11 @@ function mockParseEvent(
 
   // 移除时间、日期、地点、参与者相关词汇，只保留核心事项
   title = text
+    // 移除重复规则
+    .replace(/每天|每日/g, "")
+    .replace(/工作日/g, "")
+    .replace(/每周[一二三四五六日天]/g, "")
+    .replace(/每月\d{1,2}[号日]/g, "")
     // 移除日期
     .replace(/今天|明天|后天|大后天/g, "")
     .replace(/下周[一二三四五六日天]/g, "")
@@ -241,6 +310,7 @@ function mockParseEvent(
     location,
     attendees,
     type,
+    recurrence,
     confidence,
     warnings: warnings.length > 0 ? warnings : undefined,
   };
@@ -285,6 +355,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         location: parsed.location,
         attendees: parsed.attendees,
         type: parsed.type,
+        recurrence: parsed.recurrence,
         meta: {
           confidence: parsed.confidence,
           rawInput: text,

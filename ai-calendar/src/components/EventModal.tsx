@@ -1,14 +1,62 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarEvent, EVENT_COLORS } from "@/types/calendar";
+import { CalendarEvent, EVENT_COLORS, RecurrenceRule, WeekDay } from "@/types/calendar";
 import { exportSingleEvent } from "@/lib/ics-export";
 
 interface EventModalProps {
   event: CalendarEvent;
   onClose: () => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, deleteType?: "this" | "future" | "all") => void;
   onEdit?: (updatedEvent: CalendarEvent) => void;
+}
+
+// 格式化重复规则为中文
+function formatRecurrence(recurrence: RecurrenceRule): string {
+  const weekDayNames: Record<WeekDay, string> = {
+    MO: "周一",
+    TU: "周二",
+    WE: "周三",
+    TH: "周四",
+    FR: "周五",
+    SA: "周六",
+    SU: "周日",
+  };
+
+  if (recurrence.freq === "daily") {
+    return recurrence.interval === 1 ? "每天" : `每${recurrence.interval}天`;
+  }
+
+  if (recurrence.freq === "weekly") {
+    if (recurrence.byDay) {
+      if (
+        recurrence.byDay.length === 5 &&
+        recurrence.byDay.includes("MO") &&
+        recurrence.byDay.includes("TU") &&
+        recurrence.byDay.includes("WE") &&
+        recurrence.byDay.includes("TH") &&
+        recurrence.byDay.includes("FR")
+      ) {
+        return "每个工作日";
+      }
+      const days = recurrence.byDay.map((d) => weekDayNames[d]).join("、");
+      return `每${days}`;
+    }
+    return recurrence.interval === 1 ? "每周" : `每${recurrence.interval}周`;
+  }
+
+  if (recurrence.freq === "monthly") {
+    if (recurrence.byMonthDay) {
+      return `每月${recurrence.byMonthDay}号`;
+    }
+    return recurrence.interval === 1 ? "每月" : `每${recurrence.interval}个月`;
+  }
+
+  if (recurrence.freq === "yearly") {
+    return recurrence.interval === 1 ? "每年" : `每${recurrence.interval}年`;
+  }
+
+  return "重复";
 }
 
 // 格式化日期为 input[type=date] 格式
@@ -28,6 +76,11 @@ function formatTimeForInput(date: Date): string {
 
 export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // 检查是否是重复事件
+  const isRecurring = !!event.recurrence;
+  const isRecurringInstance = !!event.isRecurringInstance;
 
   // 编辑表单状态
   const [editTitle, setEditTitle] = useState(event.title);
@@ -37,6 +90,9 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
   const [editLocation, setEditLocation] = useState(event.location || "");
   const [editAttendees, setEditAttendees] = useState(event.attendees?.join("、") || "");
   const [editIsAllDay, setEditIsAllDay] = useState(event.isAllDay);
+  const [editRecurrenceEndDate, setEditRecurrenceEndDate] = useState(
+    event.recurrence?.until ? formatDateForInput(new Date(event.recurrence.until)) : ""
+  );
 
   const color = event.color || EVENT_COLORS[event.type || "other"];
 
@@ -84,11 +140,33 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
     }
   };
 
-  // 确认删除
-  const handleDelete = () => {
-    if (confirm(`确定要删除「${event.title}」吗？`)) {
-      onDelete(event.id);
+  // 打开删除确认
+  const handleDeleteClick = () => {
+    if (isRecurring) {
+      setShowDeleteConfirm(true);
+    } else {
+      if (confirm(`确定要删除「${event.title}」吗？`)) {
+        onDelete(event.id);
+      }
     }
+  };
+
+  // 仅删除此条
+  const handleDeleteThis = () => {
+    onDelete(event.id, "this");
+    setShowDeleteConfirm(false);
+  };
+
+  // 删除此日程及之后的所有重复
+  const handleDeleteFuture = () => {
+    onDelete(event.id, "future");
+    setShowDeleteConfirm(false);
+  };
+
+  // 删除所有重复事件
+  const handleDeleteAll = () => {
+    onDelete(event.id, "all");
+    setShowDeleteConfirm(false);
   };
 
   // 进入编辑模式
@@ -100,6 +178,9 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
     setEditLocation(event.location || "");
     setEditAttendees(event.attendees?.join("、") || "");
     setEditIsAllDay(event.isAllDay);
+    setEditRecurrenceEndDate(
+      event.recurrence?.until ? formatDateForInput(new Date(event.recurrence.until)) : ""
+    );
     setIsEditing(true);
   };
 
@@ -141,6 +222,17 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
       .map((s) => s.trim())
       .filter(Boolean);
 
+    // 更新重复规则
+    let updatedRecurrence = event.recurrence;
+    if (event.recurrence) {
+      updatedRecurrence = { ...event.recurrence };
+      if (editRecurrenceEndDate) {
+        updatedRecurrence.until = new Date(editRecurrenceEndDate + "T23:59:59");
+      } else {
+        delete updatedRecurrence.until;
+      }
+    }
+
     const updatedEvent: CalendarEvent = {
       ...event,
       title: editTitle.trim(),
@@ -149,6 +241,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
       isAllDay: editIsAllDay,
       location: editLocation.trim() || undefined,
       attendees: attendees.length > 0 ? attendees : undefined,
+      recurrence: updatedRecurrence,
       updatedAt: new Date(),
     };
 
@@ -297,6 +390,49 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
                 placeholder="多人用顿号分隔，如：老王、小李"
               />
             </div>
+
+            {/* 重复规则设置（仅当事件有重复规则时显示） */}
+            {event.recurrence && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg
+                    className="w-4 h-4 text-blue-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                    重复规则：{formatRecurrence(event.recurrence)}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
+                    重复结束日期 <span className="text-gray-400">(留空则永不结束)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editRecurrenceEndDate}
+                    onChange={(e) => setEditRecurrenceEndDate(e.target.value)}
+                    min={editDate}
+                    className="w-full px-3 py-2 border border-blue-200 dark:border-blue-700 rounded-lg
+                               bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                {editRecurrenceEndDate && (
+                  <p className="text-xs text-blue-500 dark:text-blue-400 mt-2">
+                    将重复至 {new Date(editRecurrenceEndDate).toLocaleDateString("zh-CN")}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 操作按钮 */}
@@ -448,12 +584,102 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
               <span>{event.description}</span>
             </div>
           )}
+
+          {/* 重复规则显示 */}
+          {event.recurrence && (
+            <div className="flex gap-3">
+              <svg
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              <div>
+                <span className="text-blue-600 dark:text-blue-400 font-medium">
+                  {formatRecurrence(event.recurrence)}
+                </span>
+                {event.recurrence.until && (
+                  <span className="text-gray-500 dark:text-slate-400 text-sm ml-2">
+                    (至 {new Date(event.recurrence.until).toLocaleDateString("zh-CN")})
+                  </span>
+                )}
+                {!event.recurrence.until && (
+                  <span className="text-gray-400 dark:text-slate-500 text-sm ml-2">
+                    (永久重复)
+                  </span>
+                )}
+                {isRecurringInstance && (
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                    此为重复实例
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* 删除确认对话框 */}
+        {showDeleteConfirm && (
+          <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-800 dark:text-red-300 text-sm font-medium mb-3">
+              这是一个重复日程，请选择删除方式：
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleDeleteThis}
+                className="w-full px-4 py-2.5 text-sm text-left rounded-lg transition-colors
+                           text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-700
+                           hover:bg-gray-100 dark:hover:bg-slate-600 border border-gray-200 dark:border-slate-600"
+              >
+                <div className="font-medium">仅删除此日程</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                  只删除 {event.start.toLocaleDateString("zh-CN")} 这一条
+                </div>
+              </button>
+              <button
+                onClick={handleDeleteFuture}
+                className="w-full px-4 py-2.5 text-sm text-left rounded-lg transition-colors
+                           text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30
+                           hover:bg-orange-100 dark:hover:bg-orange-900/50 border border-orange-200 dark:border-orange-800"
+              >
+                <div className="font-medium">删除此日程及之后的所有重复</div>
+                <div className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+                  从 {event.start.toLocaleDateString("zh-CN")} 起不再重复
+                </div>
+              </button>
+              <button
+                onClick={handleDeleteAll}
+                className="w-full px-4 py-2.5 text-sm text-left rounded-lg transition-colors
+                           text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40
+                           hover:bg-red-200 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-800"
+              >
+                <div className="font-medium">删除所有重复日程</div>
+                <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                  彻底删除这个重复日程
+                </div>
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="w-full px-4 py-2 text-sm text-gray-600 dark:text-slate-300
+                           hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-center mt-1"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 操作按钮 */}
         <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 dark:border-slate-700">
           <button
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors flex items-center gap-2"
           >
             <svg

@@ -1,11 +1,68 @@
 "use client";
 
-import { ParsedEventData, CalendarEvent, EVENT_COLORS } from "@/types/calendar";
+import { useState } from "react";
+import { ParsedEventData, CalendarEvent, EVENT_COLORS, RecurrenceRule, WeekDay } from "@/types/calendar";
+
+// 格式化日期为 input[type=date] 格式
+function formatDateForInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// 格式化重复规则为中文
+function formatRecurrence(recurrence: RecurrenceRule): string {
+  const weekDayNames: Record<WeekDay, string> = {
+    MO: "周一",
+    TU: "周二",
+    WE: "周三",
+    TH: "周四",
+    FR: "周五",
+    SA: "周六",
+    SU: "周日",
+  };
+
+  if (recurrence.freq === "daily") {
+    return "每天";
+  }
+
+  if (recurrence.freq === "weekly") {
+    if (recurrence.byDay) {
+      if (
+        recurrence.byDay.length === 5 &&
+        recurrence.byDay.includes("MO") &&
+        recurrence.byDay.includes("TU") &&
+        recurrence.byDay.includes("WE") &&
+        recurrence.byDay.includes("TH") &&
+        recurrence.byDay.includes("FR")
+      ) {
+        return "每个工作日";
+      }
+      const days = recurrence.byDay.map((d) => weekDayNames[d]).join("、");
+      return `每${days}`;
+    }
+    return "每周";
+  }
+
+  if (recurrence.freq === "monthly") {
+    if (recurrence.byMonthDay) {
+      return `每月${recurrence.byMonthDay}号`;
+    }
+    return "每月";
+  }
+
+  if (recurrence.freq === "yearly") {
+    return "每年";
+  }
+
+  return "重复";
+}
 
 interface EventPreviewProps {
   data: ParsedEventData;
   conflicts?: CalendarEvent[];
-  onConfirm: () => void;
+  onConfirm: (modifiedRecurrence?: RecurrenceRule) => void;
   onCancel: () => void;
   onEdit?: (data: ParsedEventData) => void;
 }
@@ -22,6 +79,32 @@ export function EventPreview({
   const isLowConfidence = data.meta.confidence < 0.7;
   const hasConflict = conflicts.length > 0;
   const color = EVENT_COLORS[data.type || "other"];
+
+  // 重复规则的起止日期状态
+  const [recurrenceStartDate, setRecurrenceStartDate] = useState(
+    formatDateForInput(startDate)
+  );
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState(
+    data.recurrence?.until ? formatDateForInput(new Date(data.recurrence.until)) : ""
+  );
+
+  // 处理确认，传递修改后的重复规则
+  const handleConfirm = () => {
+    if (data.recurrence) {
+      const modifiedRecurrence: RecurrenceRule = {
+        ...data.recurrence,
+      };
+      // 设置结束日期
+      if (recurrenceEndDate) {
+        modifiedRecurrence.until = new Date(recurrenceEndDate + "T23:59:59");
+      } else {
+        delete modifiedRecurrence.until;
+      }
+      onConfirm(modifiedRecurrence);
+    } else {
+      onConfirm();
+    }
+  };
 
   // 格式化时间显示
   const formatTime = () => {
@@ -218,6 +301,68 @@ export function EventPreview({
             </div>
           )}
 
+          {/* 重复规则显示和设置 */}
+          {data.recurrence && (
+            <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex gap-3 items-center">
+                <svg
+                  className="w-5 h-5 text-blue-500 dark:text-blue-400 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                <span className="text-blue-700 dark:text-blue-300 font-medium">
+                  {formatRecurrence(data.recurrence)}
+                </span>
+              </div>
+
+              {/* 起止日期设置 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
+                    开始日期
+                  </label>
+                  <input
+                    type="date"
+                    value={recurrenceStartDate}
+                    onChange={(e) => setRecurrenceStartDate(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm border border-blue-200 dark:border-blue-700 rounded
+                               bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                               focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
+                    结束日期 <span className="text-gray-400">(可选)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={recurrenceEndDate}
+                    onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                    min={recurrenceStartDate}
+                    placeholder="永不结束"
+                    className="w-full px-2 py-1.5 text-sm border border-blue-200 dark:border-blue-700 rounded
+                               bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                               focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-blue-500 dark:text-blue-400">
+                {recurrenceEndDate
+                  ? `将重复至 ${new Date(recurrenceEndDate).toLocaleDateString("zh-CN")}`
+                  : "不设置结束日期则永久重复"
+                }
+              </p>
+            </div>
+          )}
+
           {/* 置信度显示 */}
           <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-slate-700">
             <span className="text-xs text-gray-400 dark:text-slate-500">
@@ -243,7 +388,7 @@ export function EventPreview({
             </button>
           )}
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className={`px-4 py-2 text-white rounded-lg transition-colors ${
               hasConflict
                 ? "bg-orange-500 hover:bg-orange-600"

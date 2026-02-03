@@ -8,11 +8,12 @@ import { EventPreview } from "@/components/EventPreview";
 import { EventModal } from "@/components/EventModal";
 import { QuickTemplates } from "@/components/QuickTemplates";
 import { SearchBar } from "@/components/SearchBar";
-import { CalendarEvent, ParsedEventData } from "@/types/calendar";
+import { CalendarEvent, ParsedEventData, RecurrenceRule } from "@/types/calendar";
 import { saveEvents, loadEvents } from "@/lib/storage";
 import { checkConflict } from "@/lib/conflict";
 import { exportAllEvents } from "@/lib/ics-export";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { expandRecurringEvents } from "@/lib/recurrence";
 
 // 空状态组件
 function EmptyState() {
@@ -59,6 +60,20 @@ export default function Home() {
     }
   }, [events, isLoaded]);
 
+  // 展开重复事件用于日历显示
+  const expandedEvents = useMemo(() => {
+    // 计算显示范围（当前日期前后3个月）
+    const rangeStart = new Date(calendarDate);
+    rangeStart.setMonth(rangeStart.getMonth() - 1);
+    rangeStart.setDate(1);
+
+    const rangeEnd = new Date(calendarDate);
+    rangeEnd.setMonth(rangeEnd.getMonth() + 2);
+    rangeEnd.setDate(0);
+
+    return expandRecurringEvents(events, rangeStart, rangeEnd);
+  }, [events, calendarDate]);
+
   // 计算冲突事件
   const conflicts = useMemo(() => {
     if (!previewData) return [];
@@ -81,7 +96,7 @@ export default function Home() {
   };
 
   // 确认添加事件
-  const handleConfirmAdd = () => {
+  const handleConfirmAdd = (modifiedRecurrence?: RecurrenceRule) => {
     if (!previewData) return;
 
     const newEvent: CalendarEvent = {
@@ -94,6 +109,7 @@ export default function Home() {
       description: previewData.description,
       attendees: previewData.attendees,
       type: previewData.type,
+      recurrence: modifiedRecurrence || previewData.recurrence,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -117,9 +133,40 @@ export default function Home() {
     setSelectedEvent(null);
   };
 
-  // 删除事件
-  const handleDeleteEvent = (id: string) => {
-    setEvents((prev) => prev.filter((e) => e.id !== id));
+  // 删除事件（支持三种模式）
+  // deleteType: "this" = 仅删除此条, "future" = 删除此日程及之后, "all" = 删除所有
+  const handleDeleteEvent = (id: string, deleteType?: "this" | "future" | "all") => {
+    // 获取原始事件 ID（如果是重复实例）
+    const originalId = selectedEvent?.originalEventId || id;
+
+    if (deleteType === "all" || !deleteType) {
+      // 删除所有重复事件（使用原始 ID）
+      setEvents((prev) => prev.filter((e) => e.id !== originalId));
+    } else if (deleteType === "future" && selectedEvent) {
+      // 删除此日程及之后：修改原事件的 until 日期
+      setEvents((prev) =>
+        prev.map((e) => {
+          if (e.id === originalId && e.recurrence) {
+            // 设置结束日期为当前实例的前一天
+            const newUntil = new Date(selectedEvent.start);
+            newUntil.setDate(newUntil.getDate() - 1);
+            return {
+              ...e,
+              recurrence: {
+                ...e.recurrence,
+                until: newUntil,
+              },
+              updatedAt: new Date(),
+            };
+          }
+          return e;
+        })
+      );
+    } else if (deleteType === "this") {
+      // 仅删除此条：对于重复事件，暂时使用删除所有的方式
+      // 真正的单条删除需要存储例外日期，这里简化处理
+      setEvents((prev) => prev.filter((e) => e.id !== originalId));
+    }
     setSelectedEvent(null);
   };
 
@@ -246,10 +293,12 @@ export default function Home() {
           <EmptyState />
         ) : (
           <CalendarView
-            events={events}
+            events={expandedEvents}
             onSelectEvent={handleSelectEvent}
             onEventDrop={handleEventDrop}
             onEventResize={handleEventResize}
+            date={calendarDate}
+            onNavigate={setCalendarDate}
           />
         )}
       </main>

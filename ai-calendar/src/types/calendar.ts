@@ -50,6 +50,9 @@ export interface CalendarEvent {
   recurrence?: RecurrenceRule;
   createdAt: Date;
   updatedAt: Date;
+  // 重复事件实例相关属性
+  originalEventId?: string;
+  isRecurringInstance?: boolean;
 }
 
 // ============================================
