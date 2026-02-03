@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarEvent, EVENT_COLORS, EventType } from "@/types/calendar";
+import { CalendarEvent, EVENT_COLORS } from "@/types/calendar";
+import { exportSingleEvent } from "@/lib/ics-export";
 
 interface EventModalProps {
   event: CalendarEvent;
@@ -162,13 +163,13 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
         className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
         onClick={handleBackdropClick}
       >
-        <div className="bg-white rounded-xl p-6 w-[480px] max-w-[90vw] shadow-xl">
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-[480px] max-w-[90vw] shadow-xl">
           {/* 头部 */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">编辑日程</h2>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-slate-100">编辑日程</h2>
             <button
               onClick={handleCancelEdit}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
             >
               <svg
                 className="w-6 h-6"
@@ -190,14 +191,16 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
           <div className="space-y-4 mb-6">
             {/* 标题 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 标题
               </label>
               <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg
+                           bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="输入日程标题"
               />
             </div>
@@ -209,23 +212,25 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
                 id="allDay"
                 checked={editIsAllDay}
                 onChange={(e) => setEditIsAllDay(e.target.checked)}
-                className="w-4 h-4 text-blue-500 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-blue-500 border-gray-300 dark:border-slate-600 rounded focus:ring-blue-500"
               />
-              <label htmlFor="allDay" className="text-sm text-gray-700">
+              <label htmlFor="allDay" className="text-sm text-gray-700 dark:text-slate-300">
                 全天事件
               </label>
             </div>
 
             {/* 日期 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 日期
               </label>
               <input
                 type="date"
                 value={editDate}
                 onChange={(e) => setEditDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg
+                           bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -233,25 +238,29 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
             {!editIsAllDay && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     开始时间
                   </label>
                   <input
                     type="time"
                     value={editStartTime}
                     onChange={(e) => setEditStartTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg
+                               bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     结束时间
                   </label>
                   <input
                     type="time"
                     value={editEndTime}
                     onChange={(e) => setEditEndTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg
+                               bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -259,38 +268,42 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
 
             {/* 地点 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 地点
               </label>
               <input
                 type="text"
                 value={editLocation}
                 onChange={(e) => setEditLocation(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg
+                           bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="输入地点（可选）"
               />
             </div>
 
             {/* 参与者 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 参与者
               </label>
               <input
                 type="text"
                 value={editAttendees}
                 onChange={(e) => setEditAttendees(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg
+                           bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="多人用顿号分隔，如：老王、小李"
               />
             </div>
           </div>
 
           {/* 操作按钮 */}
-          <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+          <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 dark:border-slate-700">
             <button
               onClick={handleCancelEdit}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="px-4 py-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               取消
             </button>
@@ -312,7 +325,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-xl p-6 w-[480px] max-w-[90vw] shadow-xl">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-[480px] max-w-[90vw] shadow-xl">
         {/* 头部 */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -320,13 +333,13 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
               className="w-4 h-4 rounded-full flex-shrink-0"
               style={{ backgroundColor: color }}
             />
-            <h2 className="text-xl font-semibold text-gray-800">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-slate-100">
               {event.title}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
           >
             <svg
               className="w-6 h-6"
@@ -355,10 +368,10 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
         </div>
 
         {/* 详情 */}
-        <div className="space-y-3 text-gray-600 mb-6">
+        <div className="space-y-3 text-gray-600 dark:text-slate-300 mb-6">
           <div className="flex gap-3">
             <svg
-              className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+              className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -376,7 +389,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
           {event.location && (
             <div className="flex gap-3">
               <svg
-                className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -401,7 +414,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
           {event.attendees && event.attendees.length > 0 && (
             <div className="flex gap-3">
               <svg
-                className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -420,7 +433,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
           {event.description && (
             <div className="flex gap-3">
               <svg
-                className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -438,10 +451,10 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
         </div>
 
         {/* 操作按钮 */}
-        <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+        <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 dark:border-slate-700">
           <button
             onClick={handleDelete}
-            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors flex items-center gap-2"
           >
             <svg
               className="w-4 h-4"
@@ -458,10 +471,29 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
             </svg>
             删除
           </button>
+          <button
+            onClick={() => exportSingleEvent(event)}
+            className="px-4 py-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
+            </svg>
+            导出
+          </button>
           {onEdit && (
             <button
               onClick={handleStartEdit}
-              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-2"
+              className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors flex items-center gap-2"
             >
               <svg
                 className="w-4 h-4"
@@ -481,7 +513,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
           )}
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
           >
             关闭
           </button>

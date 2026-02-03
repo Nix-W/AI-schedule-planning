@@ -79,14 +79,14 @@ export function EventPreview({
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-xl p-6 w-[480px] max-w-[90vw] shadow-xl">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-[480px] max-w-[90vw] shadow-xl">
         {/* 标题 */}
         <div className="flex items-center gap-3 mb-4">
           <div
             className="w-4 h-4 rounded-full flex-shrink-0"
             style={{ backgroundColor: color }}
           />
-          <h2 className="text-xl font-semibold text-gray-800">{data.title}</h2>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-slate-100">{data.title}</h2>
           <span
             className="ml-auto text-xs px-2 py-1 rounded-full"
             style={{ backgroundColor: `${color}20`, color: color }}
@@ -156,10 +156,10 @@ export function EventPreview({
         )}
 
         {/* 详情 */}
-        <div className="space-y-3 text-gray-600 mb-6">
+        <div className="space-y-3 text-gray-600 dark:text-slate-300 mb-6">
           <div className="flex gap-3">
             <svg
-              className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+              className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -177,7 +177,7 @@ export function EventPreview({
           {data.location && (
             <div className="flex gap-3">
               <svg
-                className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -202,7 +202,7 @@ export function EventPreview({
           {data.attendees && data.attendees.length > 0 && (
             <div className="flex gap-3">
               <svg
-                className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -219,8 +219,8 @@ export function EventPreview({
           )}
 
           {/* 置信度显示 */}
-          <div className="flex gap-3 pt-2 border-t border-gray-100">
-            <span className="text-xs text-gray-400">
+          <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-slate-700">
+            <span className="text-xs text-gray-400 dark:text-slate-500">
               解析置信度: {Math.round(data.meta.confidence * 100)}%
             </span>
           </div>
@@ -230,14 +230,14 @@ export function EventPreview({
         <div className="flex gap-3 justify-end">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-4 py-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             取消
           </button>
           {onEdit && (
             <button
               onClick={() => onEdit(data)}
-              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
             >
               编辑
             </button>

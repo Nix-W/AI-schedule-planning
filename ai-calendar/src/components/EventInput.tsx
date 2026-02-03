@@ -79,10 +79,11 @@ export function EventInput({
           onKeyDown={handleKeyDown}
           placeholder="输入日程，如：明天下午3点和老王开会"
           disabled={loading || disabled}
-          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg
+          className="flex-1 px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg
                      focus:outline-none focus:ring-2 focus:ring-blue-500
-                     focus:border-transparent disabled:bg-gray-100
-                     text-gray-800 placeholder-gray-400"
+                     focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-slate-700
+                     bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                     placeholder-gray-400 dark:placeholder-slate-400"
         />
         <button
           onClick={handleSubmit}
