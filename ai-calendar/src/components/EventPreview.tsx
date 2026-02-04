@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ParsedEventData, CalendarEvent, EVENT_COLORS, RecurrenceRule, WeekDay } from "@/types/calendar";
+import { ParsedEventData, CalendarEvent, EVENT_COLORS, RecurrenceRule, WeekDay, ReminderMinutes } from "@/types/calendar";
+import { REMINDER_OPTIONS } from "@/lib/reminder";
 
 // 格式化日期为 input[type=date] 格式
 function formatDateForInput(date: Date): string {
@@ -62,7 +63,7 @@ function formatRecurrence(recurrence: RecurrenceRule): string {
 interface EventPreviewProps {
   data: ParsedEventData;
   conflicts?: CalendarEvent[];
-  onConfirm: (modifiedRecurrence?: RecurrenceRule) => void;
+  onConfirm: (modifiedRecurrence?: RecurrenceRule, reminder?: ReminderMinutes) => void;
   onCancel: () => void;
   onEdit?: (data: ParsedEventData) => void;
 }
@@ -88,7 +89,10 @@ export function EventPreview({
     data.recurrence?.until ? formatDateForInput(new Date(data.recurrence.until)) : ""
   );
 
-  // 处理确认，传递修改后的重复规则
+  // 提醒时间状态（默认15分钟前提醒，全天事件默认不提醒）
+  const [reminder, setReminder] = useState<ReminderMinutes>(data.isAllDay ? 0 : 15);
+
+  // 处理确认，传递修改后的重复规则和提醒设置
   const handleConfirm = () => {
     if (data.recurrence) {
       const modifiedRecurrence: RecurrenceRule = {
@@ -100,9 +104,9 @@ export function EventPreview({
       } else {
         delete modifiedRecurrence.until;
       }
-      onConfirm(modifiedRecurrence);
+      onConfirm(modifiedRecurrence, reminder);
     } else {
-      onConfirm();
+      onConfirm(undefined, reminder);
     }
   };
 
@@ -360,6 +364,38 @@ export function EventPreview({
                   : "不设置结束日期则永久重复"
                 }
               </p>
+            </div>
+          )}
+
+          {/* 提醒设置 */}
+          {!data.isAllDay && (
+            <div className="flex gap-3 items-center">
+              <svg
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+              <select
+                value={reminder}
+                onChange={(e) => setReminder(Number(e.target.value) as ReminderMinutes)}
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg
+                           bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {REMINDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

@@ -8,12 +8,17 @@ import { EventPreview } from "@/components/EventPreview";
 import { EventModal } from "@/components/EventModal";
 import { QuickTemplates } from "@/components/QuickTemplates";
 import { SearchBar } from "@/components/SearchBar";
-import { CalendarEvent, ParsedEventData, RecurrenceRule } from "@/types/calendar";
+import { CalendarEvent, ParsedEventData, RecurrenceRule, ReminderMinutes } from "@/types/calendar";
 import { saveEvents, loadEvents } from "@/lib/storage";
 import { checkConflict } from "@/lib/conflict";
 import { exportAllEvents } from "@/lib/ics-export";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { expandRecurringEvents } from "@/lib/recurrence";
+import {
+  requestNotificationPermission,
+  checkAndSendReminders,
+  getNotificationPermission,
+} from "@/lib/reminder";
 
 // 空状态组件
 function EmptyState() {
@@ -45,12 +50,27 @@ export default function Home() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [notificationPermission, setNotificationPermission] = useState<string>("default");
 
-  // 页面加载时从 localStorage 读取事件
+  // 页面加载时从 localStorage 读取事件并请求通知权限
   useEffect(() => {
     const storedEvents = loadEvents();
     setEvents(storedEvents);
     setIsLoaded(true);
+
+    // 检查并请求通知权限
+    const permission = getNotificationPermission();
+    setNotificationPermission(permission);
+
+    if (permission === "default") {
+      // 延迟请求权限，避免页面刚加载就弹出
+      const timer = setTimeout(() => {
+        requestNotificationPermission().then((granted) => {
+          setNotificationPermission(granted ? "granted" : "denied");
+        });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   // events 变化时保存到 localStorage（跳过初始加载）
@@ -74,6 +94,23 @@ export default function Home() {
     return expandRecurringEvents(events, rangeStart, rangeEnd);
   }, [events, calendarDate]);
 
+  // 定时检查提醒（每15秒检查一次，确保提醒准时）
+  useEffect(() => {
+    if (!isLoaded || notificationPermission !== "granted") {
+      return;
+    }
+
+    // 立即检查一次
+    checkAndSendReminders(expandedEvents);
+
+    // 每15秒检查一次
+    const interval = setInterval(() => {
+      checkAndSendReminders(expandedEvents);
+    }, 15 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isLoaded, notificationPermission, expandedEvents]);
+
   // 计算冲突事件
   const conflicts = useMemo(() => {
     if (!previewData) return [];
@@ -96,7 +133,7 @@ export default function Home() {
   };
 
   // 确认添加事件
-  const handleConfirmAdd = (modifiedRecurrence?: RecurrenceRule) => {
+  const handleConfirmAdd = (modifiedRecurrence?: RecurrenceRule, reminder?: ReminderMinutes) => {
     if (!previewData) return;
 
     const newEvent: CalendarEvent = {
@@ -110,6 +147,7 @@ export default function Home() {
       attendees: previewData.attendees,
       type: previewData.type,
       recurrence: modifiedRecurrence || previewData.recurrence,
+      reminder: reminder,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

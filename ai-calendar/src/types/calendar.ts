@@ -36,6 +36,9 @@ export interface RecurrenceRule {
 // 日历事件
 // ============================================
 
+// 提醒时间选项（分钟）
+export type ReminderMinutes = 0 | 1 | 5 | 10 | 15 | 30 | 60;
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -48,6 +51,7 @@ export interface CalendarEvent {
   color?: string;
   type?: EventType;
   recurrence?: RecurrenceRule;
+  reminder?: ReminderMinutes; // 提前多少分钟提醒，0 表示不提醒
   createdAt: Date;
   updatedAt: Date;
   // 重复事件实例相关属性

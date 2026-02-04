@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarEvent, EVENT_COLORS, RecurrenceRule, WeekDay } from "@/types/calendar";
+import { CalendarEvent, EVENT_COLORS, RecurrenceRule, WeekDay, ReminderMinutes } from "@/types/calendar";
 import { exportSingleEvent } from "@/lib/ics-export";
+import { REMINDER_OPTIONS, getReminderLabel } from "@/lib/reminder";
 
 interface EventModalProps {
   event: CalendarEvent;
@@ -93,6 +94,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
   const [editRecurrenceEndDate, setEditRecurrenceEndDate] = useState(
     event.recurrence?.until ? formatDateForInput(new Date(event.recurrence.until)) : ""
   );
+  const [editReminder, setEditReminder] = useState<ReminderMinutes>(event.reminder || 0);
 
   const color = event.color || EVENT_COLORS[event.type || "other"];
 
@@ -181,6 +183,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
     setEditRecurrenceEndDate(
       event.recurrence?.until ? formatDateForInput(new Date(event.recurrence.until)) : ""
     );
+    setEditReminder(event.reminder || 0);
     setIsEditing(true);
   };
 
@@ -242,6 +245,7 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
       location: editLocation.trim() || undefined,
       attendees: attendees.length > 0 ? attendees : undefined,
       recurrence: updatedRecurrence,
+      reminder: editIsAllDay ? 0 : editReminder,
       updatedAt: new Date(),
     };
 
@@ -433,6 +437,28 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
                 )}
               </div>
             )}
+
+            {/* 提醒设置（非全天事件） */}
+            {!editIsAllDay && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  提醒
+                </label>
+                <select
+                  value={editReminder}
+                  onChange={(e) => setEditReminder(Number(e.target.value) as ReminderMinutes)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg
+                             bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100
+                             focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {REMINDER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* 操作按钮 */}
@@ -621,6 +647,28 @@ export function EventModal({ event, onClose, onDelete, onEdit }: EventModalProps
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* 提醒显示 */}
+          {!event.isAllDay && event.reminder !== undefined && event.reminder > 0 && (
+            <div className="flex gap-3">
+              <svg
+                className="w-5 h-5 text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+              <span className="text-amber-600 dark:text-amber-400">
+                {getReminderLabel(event.reminder)}
+              </span>
             </div>
           )}
         </div>
